@@ -14,19 +14,23 @@ serve(async (req) => {
   try {
     const { filePath, extractTopics } = await req.json();
 
-    const authHeader = req.headers.get('Authorization')!;
+    // Use service role key for server-side storage access
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    console.log('Downloading file from storage:', filePath);
 
     // Download the file from storage
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('note-files')
       .download(filePath);
 
-    if (downloadError) throw downloadError;
+    if (downloadError) {
+      console.error('Download error:', downloadError);
+      throw downloadError;
+    }
 
     // Convert file to base64
     const arrayBuffer = await fileData.arrayBuffer();
