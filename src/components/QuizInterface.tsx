@@ -15,13 +15,12 @@ interface Question {
 }
 
 interface QuizInterfaceProps {
-  noteId: string;
   noteContent: string;
   selectedTopics?: string[];
   onComplete: (score: number, total: number) => void;
 }
 
-export const QuizInterface = ({ noteId, noteContent, selectedTopics, onComplete }: QuizInterfaceProps) => {
+export const QuizInterface = ({ noteContent, selectedTopics, onComplete }: QuizInterfaceProps) => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState("");
@@ -37,15 +36,27 @@ export const QuizInterface = ({ noteId, noteContent, selectedTopics, onComplete 
 
   const generateQuiz = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke("generate-quiz", {
-        body: { 
-          content: noteContent,
-          selectedTopics: selectedTopics 
-        },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-quiz`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({
+            content: noteContent,
+            selectedTopics: selectedTopics,
+          }),
+        }
+      );
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate quiz');
+      }
 
+      const data = await response.json();
       setQuestions(data.questions);
       setLoading(false);
     } catch (error: any) {

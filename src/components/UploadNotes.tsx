@@ -4,7 +4,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Upload, FileText, Loader2, Image, FileType } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 
 interface Topic {
   id: string;
@@ -14,7 +13,7 @@ interface Topic {
 }
 
 interface UploadNotesProps {
-  onNotesUploaded: (noteId: string, content: string, topics?: Topic[]) => void;
+  onNotesUploaded: (content: string, topics?: Topic[]) => void;
 }
 
 export const UploadNotes = ({ onNotesUploaded }: UploadNotesProps) => {
@@ -64,40 +63,47 @@ export const UploadNotes = ({ onNotesUploaded }: UploadNotesProps) => {
 
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
       let extractedContent = content;
-      let filePath = null;
       let topics = null;
 
       // If file is uploaded, extract content from it
       if (selectedFile) {
-        // Upload file to storage
-        const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('note-files')
-          .upload(fileName, selectedFile);
+        // Read file as base64
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          reader.onload = () => {
+            const base64 = (reader.result as string).split(',')[1];
+            resolve(base64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(selectedFile);
+        });
 
-        if (uploadError) throw uploadError;
+        const base64File = await base64Promise;
 
-        filePath = fileName;
-
-        // Extract content from file using edge function
-        const { data: extractData, error: extractError } = await supabase.functions.invoke(
-          "extract-content",
+        // Call edge function to extract content (it will handle the AI processing)
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-content-direct`,
           {
-            body: { 
-              filePath: fileName,
-              extractTopics: true // Always extract topics for files
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
             },
+            body: JSON.stringify({
+              fileData: base64File,
+              mimeType: selectedFile.type,
+              extractTopics: true,
+            }),
           }
         );
 
-        if (extractError) throw extractError;
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to extract content');
+        }
 
+        const extractData = await response.json();
         extractedContent = extractData.content;
         topics = extractData.topics;
 
@@ -106,29 +112,14 @@ export const UploadNotes = ({ onNotesUploaded }: UploadNotesProps) => {
         }
       }
 
-      const { data, error } = await supabase
-        .from("notes")
-        .insert({
-          user_id: user.id,
-          title: selectedFile ? selectedFile.name : "Text Note",
-          content: extractedContent,
-          content_type: selectedFile ? selectedFile.type : "text",
-          file_path: filePath,
-          topics: topics,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
       toast({
         title: "Success!",
         description: selectedFile 
           ? "File processed successfully" 
-          : "Notes uploaded successfully",
+          : "Notes ready for quiz generation",
       });
 
-      onNotesUploaded(data.id, extractedContent, topics);
+      onNotesUploaded(extractedContent, topics);
     } catch (error: any) {
       toast({
         variant: "destructive",
