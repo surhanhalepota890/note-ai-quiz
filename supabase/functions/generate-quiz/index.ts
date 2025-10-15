@@ -11,11 +11,16 @@ serve(async (req) => {
   }
 
   try {
-    const { content } = await req.json();
+    const { content, selectedTopics } = await req.json();
 
     if (!content || content.trim().length < 50) {
       throw new Error("Content must be at least 50 characters long");
     }
+
+    // If specific topics are selected, add context to the prompt
+    const topicsContext = selectedTopics && selectedTopics.length > 0
+      ? `\n\nFocus ONLY on these specific topics from the content: ${selectedTopics.join(', ')}`
+      : '';
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -66,7 +71,7 @@ For short answer, provide a brief correct answer from the text.`
           },
           {
             role: 'user',
-            content: `Generate a quiz from this content:\n\n${content}`
+            content: `Generate a quiz from this content:\n\n${content}${topicsContext}`
           }
         ],
         temperature: 0.7,

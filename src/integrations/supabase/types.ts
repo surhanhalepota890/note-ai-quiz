@@ -19,24 +19,30 @@ export type Database = {
           content: string
           content_type: string
           created_at: string | null
+          file_path: string | null
           id: string
           title: string
+          topics: Json | null
           user_id: string
         }
         Insert: {
           content: string
           content_type?: string
           created_at?: string | null
+          file_path?: string | null
           id?: string
           title: string
+          topics?: Json | null
           user_id: string
         }
         Update: {
           content?: string
           content_type?: string
           created_at?: string | null
+          file_path?: string | null
           id?: string
           title?: string
+          topics?: Json | null
           user_id?: string
         }
         Relationships: []

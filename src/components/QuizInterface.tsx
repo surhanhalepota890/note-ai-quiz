@@ -17,10 +17,11 @@ interface Question {
 interface QuizInterfaceProps {
   noteId: string;
   noteContent: string;
+  selectedTopics?: string[];
   onComplete: (score: number, total: number) => void;
 }
 
-export const QuizInterface = ({ noteId, noteContent, onComplete }: QuizInterfaceProps) => {
+export const QuizInterface = ({ noteId, noteContent, selectedTopics, onComplete }: QuizInterfaceProps) => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState("");
@@ -37,7 +38,10 @@ export const QuizInterface = ({ noteId, noteContent, onComplete }: QuizInterface
   const generateQuiz = async () => {
     try {
       const { data, error } = await supabase.functions.invoke("generate-quiz", {
-        body: { content: noteContent },
+        body: { 
+          content: noteContent,
+          selectedTopics: selectedTopics 
+        },
       });
 
       if (error) throw error;
