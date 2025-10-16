@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { QuizConfiguration } from "./QuizConfig";
 
 interface Question {
   question: string;
@@ -17,10 +17,11 @@ interface Question {
 interface QuizInterfaceProps {
   noteContent: string;
   selectedTopics?: string[];
+  quizConfig: QuizConfiguration;
   onComplete: (score: number, total: number) => void;
 }
 
-export const QuizInterface = ({ noteContent, selectedTopics, onComplete }: QuizInterfaceProps) => {
+export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onComplete }: QuizInterfaceProps) => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState("");
@@ -47,6 +48,7 @@ export const QuizInterface = ({ noteContent, selectedTopics, onComplete }: QuizI
           body: JSON.stringify({
             content: noteContent,
             selectedTopics: selectedTopics,
+            config: quizConfig,
           }),
         }
       );
@@ -69,9 +71,46 @@ export const QuizInterface = ({ noteContent, selectedTopics, onComplete }: QuizI
     }
   };
 
-  const handleAnswer = () => {
+  const handleAnswer = async () => {
     const question = questions[currentIndex];
-    const correct = selectedAnswer.toLowerCase().trim() === question.correct_answer.toLowerCase().trim();
+    let correct = false;
+
+    // For short answer questions, use AI to verify conceptual correctness
+    if (question.type === "short_answer") {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-answer`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({
+              question: question.question,
+              userAnswer: selectedAnswer,
+              correctAnswer: question.correct_answer,
+              context: noteContent,
+            }),
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          correct = data.isCorrect;
+        } else {
+          // Fallback to exact match if AI verification fails
+          correct = selectedAnswer.toLowerCase().trim() === question.correct_answer.toLowerCase().trim();
+        }
+      } catch (error) {
+        console.error('Error verifying answer:', error);
+        // Fallback to exact match
+        correct = selectedAnswer.toLowerCase().trim() === question.correct_answer.toLowerCase().trim();
+      }
+    } else {
+      // For MCQ and True/False, use exact match
+      correct = selectedAnswer.toLowerCase().trim() === question.correct_answer.toLowerCase().trim();
+    }
     
     setIsCorrect(correct);
     setShowFeedback(true);
@@ -82,12 +121,14 @@ export const QuizInterface = ({ noteContent, selectedTopics, onComplete }: QuizI
   };
 
   const handleNext = () => {
+    const finalScore = score + (isCorrect ? 1 : 0);
+    
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setSelectedAnswer("");
       setShowFeedback(false);
     } else {
-      onComplete(score + (isCorrect ? 1 : 0), questions.length);
+      onComplete(finalScore, questions.length);
     }
   };
 

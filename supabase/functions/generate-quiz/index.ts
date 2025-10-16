@@ -11,16 +11,45 @@ serve(async (req) => {
   }
 
   try {
-    const { content, selectedTopics } = await req.json();
+    const { content, selectedTopics, config } = await req.json();
 
     if (!content || content.trim().length < 50) {
       throw new Error("Content must be at least 50 characters long");
     }
 
-    // If specific topics are selected, add context to the prompt
+    // Build configuration context
     const topicsContext = selectedTopics && selectedTopics.length > 0
       ? `\n\nFocus ONLY on these specific topics from the content: ${selectedTopics.join(', ')}`
       : '';
+
+    const numQuestions = config?.numQuestions || 7;
+    const difficulty = config?.difficulty || 'mixed';
+    const questionTypes = config?.questionTypes || 'mixed';
+
+    let difficultyInstructions = '';
+    if (difficulty === 'easy') {
+      difficultyInstructions = '\n\nDifficulty: EASY - Focus on basic definitions, simple concepts, and recall questions.';
+    } else if (difficulty === 'medium') {
+      difficultyInstructions = '\n\nDifficulty: MEDIUM - Include application questions and moderate complexity.';
+    } else if (difficulty === 'hard') {
+      difficultyInstructions = '\n\nDifficulty: HARD - Include complex scenarios, analysis, and synthesis questions.';
+    } else {
+      difficultyInstructions = '\n\nDifficulty: MIXED - Include a variety of difficulty levels.';
+    }
+
+    let typeInstructions = '';
+    if (questionTypes === 'mcq') {
+      typeInstructions = `\n\nGenerate ${numQuestions} multiple choice questions ONLY.`;
+    } else if (questionTypes === 'true_false') {
+      typeInstructions = `\n\nGenerate ${numQuestions} true/false questions ONLY.`;
+    } else if (questionTypes === 'short_answer') {
+      typeInstructions = `\n\nGenerate ${numQuestions} short answer questions ONLY.`;
+    } else {
+      typeInstructions = `\n\nGenerate ${numQuestions} questions with a mix of:
+- Multiple choice (${Math.ceil(numQuestions * 0.5)} questions)
+- True/False (${Math.floor(numQuestions * 0.3)} questions)
+- Short answer (${Math.floor(numQuestions * 0.2)} questions)`;
+    }
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     if (!GEMINI_API_KEY) {
@@ -44,11 +73,8 @@ CRITICAL RULES:
 - Do NOT add external knowledge or facts
 - Questions must be answerable from the text alone
 - Explanations must reference specific parts of the provided content
-
-Generate 5-7 questions with a mix of:
-- Multiple choice (3-4 questions)
-- True/False (1-2 questions)
-- Short answer (1-2 questions)
+${difficultyInstructions}
+${typeInstructions}
 
 Return ONLY valid JSON in this exact format:
 {

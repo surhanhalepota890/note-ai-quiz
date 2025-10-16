@@ -3,5 +3,8 @@ project_id = "vcsvodgmlpzlctmeyjlo"
 [functions.generate-quiz]
 verify_jwt = false
 
+[functions.verify-answer]
+verify_jwt = false
+
 [functions.extract-content-direct]
 verify_jwt = false

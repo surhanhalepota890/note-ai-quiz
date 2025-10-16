@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { UploadNotes } from "@/components/UploadNotes";
+import { TopicSelector } from "@/components/TopicSelector";
+import { QuizConfig, QuizConfiguration } from "@/components/QuizConfig";
 import { QuizInterface } from "@/components/QuizInterface";
 import { QuizResults } from "@/components/QuizResults";
-import { TopicSelector } from "@/components/TopicSelector";
 
-type AppState = "upload" | "topics" | "quiz" | "results";
+type AppState = "upload" | "topics" | "config" | "quiz" | "results";
 
 interface Topic {
   id: string;
@@ -18,6 +19,7 @@ const Index = () => {
   const [noteContent, setNoteContent] = useState("");
   const [topics, setTopics] = useState<Topic[]>([]);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [quizConfig, setQuizConfig] = useState<QuizConfiguration | null>(null);
   const [finalScore, setFinalScore] = useState({ score: 0, total: 0 });
 
   const handleNotesUploaded = (content: string, extractedTopics?: Topic[]) => {
@@ -27,12 +29,17 @@ const Index = () => {
       setTopics(extractedTopics);
       setAppState("topics");
     } else {
-      setAppState("quiz");
+      setAppState("config");
     }
   };
 
   const handleTopicsSelected = (selected: string[]) => {
     setSelectedTopics(selected);
+    setAppState("config");
+  };
+
+  const handleConfigComplete = (config: QuizConfiguration) => {
+    setQuizConfig(config);
     setAppState("quiz");
   };
 
@@ -55,6 +62,7 @@ const Index = () => {
     setNoteContent("");
     setTopics([]);
     setSelectedTopics([]);
+    setQuizConfig(null);
     setAppState("upload");
   };
 
@@ -68,10 +76,17 @@ const Index = () => {
           onBack={handleBackToUpload}
         />
       )}
-      {appState === "quiz" && (
+      {appState === "config" && (
+        <QuizConfig
+          onContinue={handleConfigComplete}
+          onBack={() => topics.length > 0 ? setAppState("topics") : setAppState("upload")}
+        />
+      )}
+      {appState === "quiz" && quizConfig && (
         <QuizInterface
           noteContent={noteContent}
           selectedTopics={selectedTopics.length > 0 ? selectedTopics : undefined}
+          quizConfig={quizConfig}
           onComplete={handleQuizComplete}
         />
       )}
