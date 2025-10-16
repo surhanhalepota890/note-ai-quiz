@@ -17,49 +17,45 @@ serve(async (req) => {
       throw new Error('No file data provided');
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured');
 
     console.log('Extracting content from file...');
 
     // Use Gemini to extract text from the file
-    const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const extractResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=' + GEMINI_API_KEY, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Extract all text content from this document. Be thorough and accurate. Return only the extracted text content without any additional formatting or commentary.'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${fileData}`
-                }
+        contents: [{
+          parts: [
+            {
+              text: 'Extract all text content from this document. Be thorough and accurate. Return only the extracted text content without any additional formatting or commentary.'
+            },
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: fileData
               }
-            ]
-          }
-        ],
-        temperature: 0.3,
+            }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.3,
+        }
       }),
     });
 
     if (!extractResponse.ok) {
       const errorText = await extractResponse.text();
-      console.error('AI API error:', extractResponse.status, errorText);
-      throw new Error(`AI API error: ${extractResponse.status}`);
+      console.error('Gemini API error:', extractResponse.status, errorText);
+      throw new Error(`Gemini API error: ${extractResponse.status}`);
     }
 
     const extractData = await extractResponse.json();
-    const extractedText = extractData.choices[0].message.content;
+    const extractedText = extractData.candidates[0].content.parts[0].text;
 
     console.log('Content extracted, length:', extractedText.length);
 
@@ -69,18 +65,15 @@ serve(async (req) => {
     if (extractTopics && extractedText.length > 1000) {
       console.log('Extracting topics from large document...');
       
-      const topicsResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      const topicsResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=' + GEMINI_API_KEY, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a content analyzer. Analyze the provided text and identify 5-10 main topics or sections. 
+          contents: [{
+            parts: [{
+              text: `You are a content analyzer. Analyze the provided text and identify 5-10 main topics or sections. 
               For each topic, provide:
               - A clear title (max 50 characters)
               - A brief description (max 100 characters)
@@ -96,20 +89,22 @@ serve(async (req) => {
                     "subtopics": ["subtopic1", "subtopic2"]
                   }
                 ]
-              }`
-            },
-            {
-              role: 'user',
-              content: `Analyze this content and extract main topics:\n\n${extractedText}`
-            }
-          ],
-          temperature: 0.5,
+              }
+              
+              Analyze this content and extract main topics:
+
+${extractedText}`
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.5,
+          }
         }),
       });
 
       if (topicsResponse.ok) {
         const topicsData = await topicsResponse.json();
-        const topicsContent = topicsData.choices[0].message.content;
+        const topicsContent = topicsData.candidates[0].content.parts[0].text;
         
         try {
           const jsonMatch = topicsContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);

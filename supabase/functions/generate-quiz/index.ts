@@ -22,25 +22,22 @@ serve(async (req) => {
       ? `\n\nFocus ONLY on these specific topics from the content: ${selectedTopics.join(', ')}`
       : '';
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY not configured');
     }
 
     console.log('Generating quiz from content...');
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=' + GEMINI_API_KEY, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a quiz generation expert. Generate educational quizzes STRICTLY based on the provided content. 
+        contents: [{
+          parts: [{
+            text: `You are a quiz generation expert. Generate educational quizzes STRICTLY based on the provided content. 
             
 CRITICAL RULES:
 - Only use information from the provided text
@@ -67,27 +64,29 @@ Return ONLY valid JSON in this exact format:
 }
 
 For true/false questions, use "True" or "False" as correct_answer.
-For short answer, provide a brief correct answer from the text.`
-          },
-          {
-            role: 'user',
-            content: `Generate a quiz from this content:\n\n${content}${topicsContext}`
-          }
-        ],
-        temperature: 0.7,
+For short answer, provide a brief correct answer from the text.
+
+Generate a quiz from this content:
+
+${content}${topicsContext}`
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI API error:', response.status, errorText);
-      throw new Error(`AI API error: ${response.status}`);
+      console.error('Gemini API error:', response.status, errorText);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('AI response received');
+    console.log('Gemini response received');
 
-    const aiContent = data.choices[0].message.content;
+    const aiContent = data.candidates[0].content.parts[0].text;
     let parsedQuestions;
 
     try {
