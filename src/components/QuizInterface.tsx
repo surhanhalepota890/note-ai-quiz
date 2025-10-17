@@ -18,7 +18,7 @@ interface QuizInterfaceProps {
   noteContent: string;
   selectedTopics?: string[];
   quizConfig: QuizConfiguration;
-  onComplete: (score: number, total: number) => void;
+  onComplete: (score: number, total: number, answers: any[]) => void;
 }
 
 export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onComplete }: QuizInterfaceProps) => {
@@ -29,6 +29,7 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
   const [isCorrect, setIsCorrect] = useState(false);
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [userAnswers, setUserAnswers] = useState<{ question: string; userAnswer: string; correctAnswer: string; isCorrect: boolean; explanation: string }[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -99,21 +100,27 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
           const data = await response.json();
           correct = data.isCorrect;
         } else {
-          // Fallback to exact match if AI verification fails
           correct = selectedAnswer.toLowerCase().trim() === question.correct_answer.toLowerCase().trim();
         }
       } catch (error) {
         console.error('Error verifying answer:', error);
-        // Fallback to exact match
         correct = selectedAnswer.toLowerCase().trim() === question.correct_answer.toLowerCase().trim();
       }
     } else {
-      // For MCQ and True/False, use exact match
       correct = selectedAnswer.toLowerCase().trim() === question.correct_answer.toLowerCase().trim();
     }
     
     setIsCorrect(correct);
     setShowFeedback(true);
+    
+    // Track the answer
+    setUserAnswers([...userAnswers, {
+      question: question.question,
+      userAnswer: selectedAnswer,
+      correctAnswer: question.correct_answer,
+      isCorrect: correct,
+      explanation: question.explanation
+    }]);
     
     if (correct) {
       setScore(score + 1);
@@ -121,14 +128,20 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
   };
 
   const handleNext = () => {
-    const finalScore = score + (isCorrect ? 1 : 0);
-    
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setSelectedAnswer("");
       setShowFeedback(false);
     } else {
-      onComplete(finalScore, questions.length);
+      onComplete(score, questions.length, userAnswers);
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+      setSelectedAnswer("");
+      setShowFeedback(false);
     }
   };
 
@@ -236,7 +249,15 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
             </div>
           )}
 
-          <div className="mt-6 flex justify-end">
+          <div className="mt-6 flex justify-between">
+            <Button
+              onClick={handlePrevious}
+              disabled={currentIndex === 0}
+              variant="outline"
+              size="lg"
+            >
+              Previous
+            </Button>
             {!showFeedback ? (
               <Button onClick={handleAnswer} disabled={!selectedAnswer} size="lg">
                 Submit Answer

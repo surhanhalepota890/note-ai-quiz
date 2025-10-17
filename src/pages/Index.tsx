@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { UploadNotes } from "@/components/UploadNotes";
 import { TopicSelector } from "@/components/TopicSelector";
 import { QuizConfig, QuizConfiguration } from "@/components/QuizConfig";
 import { QuizInterface } from "@/components/QuizInterface";
 import { QuizResults } from "@/components/QuizResults";
+import { Navbar } from "@/components/Navbar";
+import { useToast } from "@/hooks/use-toast";
 
 type AppState = "upload" | "topics" | "config" | "quiz" | "results";
 
@@ -21,6 +25,22 @@ const Index = () => {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [quizConfig, setQuizConfig] = useState<QuizConfiguration | null>(null);
   const [finalScore, setFinalScore] = useState({ score: 0, total: 0 });
+  const [quizAnswers, setQuizAnswers] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleNotesUploaded = (content: string, extractedTopics?: Topic[]) => {
     setNoteContent(content);
@@ -49,8 +69,26 @@ const Index = () => {
     setAppState("upload");
   };
 
-  const handleQuizComplete = (score: number, total: number) => {
+  const handleQuizComplete = async (score: number, total: number, answers: any[]) => {
     setFinalScore({ score, total });
+    setQuizAnswers(answers);
+    
+    // Save quiz results if user is logged in
+    if (user) {
+      try {
+        await supabase.from('quiz_results').insert({
+          user_id: user.id,
+          quiz_id: crypto.randomUUID(),
+          score,
+          total_questions: total,
+          answers,
+          incorrect_answers: answers.filter(a => !a.isCorrect)
+        });
+      } catch (error) {
+        console.error('Error saving quiz results:', error);
+      }
+    }
+    
     setAppState("results");
   };
 
@@ -68,6 +106,7 @@ const Index = () => {
 
   return (
     <>
+      <Navbar />
       {appState === "upload" && <UploadNotes onNotesUploaded={handleNotesUploaded} />}
       {appState === "topics" && (
         <TopicSelector
@@ -94,6 +133,7 @@ const Index = () => {
         <QuizResults
           score={finalScore.score}
           total={finalScore.total}
+          answers={quizAnswers}
           onRetry={handleRetry}
           onHome={handleHome}
         />
