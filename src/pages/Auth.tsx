@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { GraduationCap, Loader2 } from "lucide-react";
+import { GraduationCap, Loader2, Mail, Lock, User } from "lucide-react";
+import { z } from "zod";
+
+const emailSchema = z.string().email("Please enter a valid email address");
+const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
+const nameSchema = z.string().min(2, "Name must be at least 2 characters");
 
 export const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -13,21 +18,77 @@ export const Auth = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string }>({});
   const navigate = useNavigate();
   const { toast } = useToast();
 
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/");
+      }
+    };
+    checkUser();
+  }, [navigate]);
+
+  const validateInputs = () => {
+    const newErrors: { email?: string; password?: string; name?: string } = {};
+    
+    try {
+      emailSchema.parse(email);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        newErrors.email = error.issues[0].message;
+      }
+    }
+
+    try {
+      passwordSchema.parse(password);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        newErrors.password = error.issues[0].message;
+      }
+    }
+
+    if (!isLogin) {
+      try {
+        nameSchema.parse(fullName);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          newErrors.name = error.issues[0].message;
+        }
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateInputs()) {
+      return;
+    }
+
     setLoading(true);
 
     try {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({
-          email,
+          email: email.trim(),
           password,
         });
 
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes("Invalid login credentials")) {
+            throw new Error("Invalid email or password. Please try again.");
+          }
+          throw error;
+        }
 
         toast({
           title: "Welcome back!",
@@ -36,28 +97,33 @@ export const Auth = () => {
         navigate("/");
       } else {
         const { error } = await supabase.auth.signUp({
-          email,
+          email: email.trim(),
           password,
           options: {
             data: {
-              full_name: fullName,
+              full_name: fullName.trim(),
             },
             emailRedirectTo: `${window.location.origin}/`,
           },
         });
 
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes("already registered")) {
+            throw new Error("This email is already registered. Please sign in instead.");
+          }
+          throw error;
+        }
 
         toast({
           title: "Account created!",
-          description: "Welcome to Quizify. Start creating quizzes!",
+          description: "Welcome to Quizify. You can now start creating quizzes!",
         });
         navigate("/");
       }
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error",
+        title: "Authentication Error",
         description: error.message,
       });
     } finally {
@@ -66,18 +132,18 @@ export const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-md p-8 card-glass glow">
-        <div className="text-center mb-8">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+      <Card className="w-full max-w-md p-6 sm:p-8 card-glass glow">
+        <div className="text-center mb-6 sm:mb-8">
           <div className="flex justify-center mb-4">
-            <div className="p-4 bg-primary/10 rounded-full">
-              <GraduationCap className="w-12 h-12 text-primary" />
+            <div className="p-3 sm:p-4 bg-primary/10 rounded-full">
+              <GraduationCap className="w-10 h-10 sm:w-12 sm:h-12 text-primary" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold gradient-text mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold gradient-text mb-2">
             {isLogin ? "Welcome Back" : "Join Quizify"}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm sm:text-base text-muted-foreground">
             {isLogin ? "Sign in to continue your learning journey" : "Create an account to get started"}
           </p>
         </div>
@@ -85,46 +151,76 @@ export const Auth = () => {
         <form onSubmit={handleAuth} className="space-y-4">
           {!isLogin && (
             <div>
-              <label className="text-sm font-medium mb-2 block">Full Name</label>
+              <label className="text-sm font-medium mb-2 flex items-center gap-2">
+                <User className="w-4 h-4 text-primary" />
+                Full Name
+              </label>
               <Input
                 type="text"
                 placeholder="John Doe"
                 value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required={!isLogin}
+                onChange={(e) => {
+                  setFullName(e.target.value);
+                  setErrors({ ...errors, name: undefined });
+                }}
                 className="bg-input border-border"
               />
+              {errors.name && (
+                <p className="text-xs text-destructive mt-1">{errors.name}</p>
+              )}
             </div>
           )}
 
+
           <div>
-            <label className="text-sm font-medium mb-2 block">Email</label>
+            <label className="text-sm font-medium mb-2 flex items-center gap-2">
+              <Mail className="w-4 h-4 text-primary" />
+              Email
+            </label>
             <Input
               type="email"
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setErrors({ ...errors, email: undefined });
+              }}
               className="bg-input border-border"
             />
+            {errors.email && (
+              <p className="text-xs text-destructive mt-1">{errors.email}</p>
+            )}
           </div>
 
           <div>
-            <label className="text-sm font-medium mb-2 block">Password</label>
+            <label className="text-sm font-medium mb-2 flex items-center gap-2">
+              <Lock className="w-4 h-4 text-primary" />
+              Password
+            </label>
             <Input
               type="password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setErrors({ ...errors, password: undefined });
+              }}
               className="bg-input border-border"
             />
+            {errors.password && (
+              <p className="text-xs text-destructive mt-1">{errors.password}</p>
+            )}
+            {!isLogin && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Must be at least 6 characters
+              </p>
+            )}
           </div>
+
 
           <Button
             type="submit"
-            className="w-full"
+            className="w-full mt-6"
             size="lg"
             disabled={loading}
           >
@@ -144,13 +240,22 @@ export const Auth = () => {
         <div className="mt-6 text-center">
           <button
             type="button"
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-sm text-primary hover:underline"
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setErrors({});
+            }}
+            className="text-sm text-primary hover:underline transition-colors"
           >
             {isLogin
               ? "Don't have an account? Sign up"
               : "Already have an account? Sign in"}
           </button>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-border">
+          <p className="text-xs text-center text-muted-foreground">
+            By continuing, you agree to Quizify's Terms of Service and Privacy Policy
+          </p>
         </div>
       </Card>
     </div>
