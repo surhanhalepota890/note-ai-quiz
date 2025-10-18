@@ -170,28 +170,28 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
   const progress = ((currentIndex + 1) / questions.length) * 100;
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl space-y-6">
+    <div className="min-h-screen flex items-center justify-center p-2 sm:p-4">
+      <div className="w-full max-w-3xl space-y-4 sm:space-y-6">
         <div className="space-y-2">
-          <div className="flex justify-between text-sm text-muted-foreground">
+          <div className="flex justify-between text-xs sm:text-sm text-muted-foreground">
             <span>Question {currentIndex + 1} of {questions.length}</span>
             <span>Score: {score}/{questions.length}</span>
           </div>
           <Progress value={progress} className="h-2" />
         </div>
 
-        <Card className="p-8 card-glass glow">
-          <h2 className="text-2xl font-bold mb-6">{question.question}</h2>
+        <Card className="p-4 sm:p-8 card-glass glow">
+          <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 break-words">{question.question}</h2>
 
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {question.type === "multiple_choice" && question.options && (
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {question.options.map((option, idx) => (
                   <button
                     key={idx}
                     onClick={() => !showFeedback && setSelectedAnswer(option)}
                     disabled={showFeedback}
-                    className={`w-full p-4 text-left rounded-lg border-2 transition-all ${
+                    className={`w-full p-3 sm:p-4 text-left text-sm sm:text-base rounded-lg border-2 transition-all ${
                       selectedAnswer === option
                         ? "border-primary bg-primary/10"
                         : "border-border hover:border-primary/50"
@@ -204,7 +204,7 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
             )}
 
             {question.type === "true_false" && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 {["True", "False"].map((option) => (
                   <Button
                     key={option}
@@ -212,6 +212,7 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
                     disabled={showFeedback}
                     variant={selectedAnswer === option ? "default" : "outline"}
                     size="lg"
+                    className="text-sm sm:text-base"
                   >
                     {option}
                   </Button>
@@ -226,44 +227,45 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
                 onChange={(e) => setSelectedAnswer(e.target.value)}
                 disabled={showFeedback}
                 placeholder="Type your answer..."
-                className="w-full p-4 rounded-lg border-2 border-border bg-input focus:border-primary outline-none transition-colors"
+                className="w-full p-3 sm:p-4 text-sm sm:text-base rounded-lg border-2 border-border bg-input focus:border-primary outline-none transition-colors"
               />
             )}
           </div>
 
           {showFeedback && (
-            <div className={`mt-6 p-4 rounded-lg ${isCorrect ? "bg-success/10 border-2 border-success" : "bg-destructive/10 border-2 border-destructive"}`}>
-              <div className="flex items-start gap-3">
+            <div className={`mt-4 sm:mt-6 p-3 sm:p-4 rounded-lg ${isCorrect ? "bg-success/10 border-2 border-success" : "bg-destructive/10 border-2 border-destructive"}`}>
+              <div className="flex items-start gap-2 sm:gap-3">
                 {isCorrect ? (
-                  <CheckCircle2 className="w-6 h-6 text-success flex-shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-success flex-shrink-0 mt-0.5" />
                 ) : (
-                  <XCircle className="w-6 h-6 text-destructive flex-shrink-0 mt-0.5" />
+                  <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-destructive flex-shrink-0 mt-0.5" />
                 )}
-                <div className="flex-1">
-                  <p className="font-semibold mb-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold mb-2 text-sm sm:text-base break-words">
                     {isCorrect ? "Correct!" : `Incorrect. The correct answer is: ${question.correct_answer}`}
                   </p>
-                  <p className="text-sm text-muted-foreground">{question.explanation}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground break-words">{question.explanation}</p>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="mt-6 flex justify-between">
+          <div className="mt-4 sm:mt-6 flex justify-between gap-2">
             <Button
               onClick={handlePrevious}
               disabled={currentIndex === 0}
               variant="outline"
-              size="lg"
+              size="sm"
+              className="sm:text-base"
             >
               Previous
             </Button>
             {!showFeedback ? (
-              <Button onClick={handleAnswer} disabled={!selectedAnswer} size="lg">
+              <Button onClick={handleAnswer} disabled={!selectedAnswer} size="sm" className="sm:text-base">
                 Submit Answer
               </Button>
             ) : (
-              <Button onClick={handleNext} size="lg">
+              <Button onClick={handleNext} size="sm" className="sm:text-base">
                 {currentIndex < questions.length - 1 ? "Next Question" : "Finish Quiz"}
               </Button>
             )}

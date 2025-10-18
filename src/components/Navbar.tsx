@@ -33,42 +33,49 @@ export const Navbar = () => {
 
   return (
     <nav className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-4">
+      <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-4">
         <div className="flex items-center justify-between">
           <div 
-            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+            className="flex items-center gap-1.5 sm:gap-2 cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => navigate("/")}
           >
-            <GraduationCap className="w-8 h-8 text-primary" />
-            <span className="text-2xl font-bold gradient-text">Quizify</span>
+            <GraduationCap className="w-6 sm:w-8 h-6 sm:h-8 text-primary" />
+            <span className="text-xl sm:text-2xl font-bold gradient-text">Quizify</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {user ? (
               <>
                 <Button
                   variant="outline"
                   onClick={() => navigate("/history")}
-                  className="gap-2"
+                  className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-4"
+                  size="sm"
                 >
-                  <History className="w-4 h-4" />
-                  History
+                  <History className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden sm:inline">History</span>
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => navigate("/profile")}
-                  className="gap-2"
+                  className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-4"
+                  size="sm"
                 >
-                  <User className="w-4 h-4" />
-                  Profile
+                  <User className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden sm:inline">Profile</span>
                 </Button>
-                <Button variant="outline" onClick={handleSignOut} className="gap-2">
-                  <LogOut className="w-4 h-4" />
-                  Sign Out
+                <Button 
+                  variant="outline" 
+                  onClick={handleSignOut} 
+                  className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-4"
+                  size="sm"
+                >
+                  <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden sm:inline">Sign Out</span>
                 </Button>
               </>
             ) : (
-              <Button onClick={() => navigate("/auth")}>Sign In</Button>
+              <Button onClick={() => navigate("/auth")} size="sm">Sign In</Button>
             )}
           </div>
         </div>

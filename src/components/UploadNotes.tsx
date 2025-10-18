@@ -135,8 +135,8 @@ export const UploadNotes = ({ onNotesUploaded }: UploadNotesProps) => {
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-4xl space-y-8">
         <div className="text-center">
-          <h1 className="text-5xl font-bold mb-4 gradient-text">NoteQuiz AI</h1>
-          <p className="text-xl text-muted-foreground">Upload your notes and let AI create personalized quizzes</p>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 gradient-text">Quizify</h1>
+          <p className="text-lg md:text-xl text-muted-foreground">Upload your notes and let AI create personalized quizzes</p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
