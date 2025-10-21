@@ -133,7 +133,16 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
       setSelectedAnswer("");
       setShowFeedback(false);
     } else {
-      onComplete(score, questions.length, userAnswers);
+      // Calculate final score from userAnswers to ensure accuracy
+      const finalScore = isCorrect ? score + 1 : score;
+      const finalAnswers = [...userAnswers, {
+        question: questions[currentIndex].question,
+        userAnswer: selectedAnswer,
+        correctAnswer: questions[currentIndex].correct_answer,
+        isCorrect: isCorrect,
+        explanation: questions[currentIndex].explanation
+      }];
+      onComplete(finalScore, questions.length, finalAnswers);
     }
   };
 
