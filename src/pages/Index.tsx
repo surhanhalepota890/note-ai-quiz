@@ -27,6 +27,7 @@ const Index = () => {
   const [finalScore, setFinalScore] = useState({ score: 0, total: 0 });
   const [quizAnswers, setQuizAnswers] = useState<any[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [isSavingResults, setIsSavingResults] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -75,55 +76,60 @@ const Index = () => {
     
     // Persist notes, quiz, and results when logged in (fix FK)
     if (user) {
-      try {
-        // 1) Create a note record
-        const title = noteContent.split('\n')[0]?.slice(0, 80) || 'Uploaded Notes';
-        const { data: noteInsert, error: noteError } = await supabase
-          .from('notes')
-          .insert({
+      if (!isSavingResults) {
+        setIsSavingResults(true);
+        try {
+          // 1) Create a note record
+          const title = noteContent.split('\n')[0]?.slice(0, 80) || 'Uploaded Notes';
+          const { data: noteInsert, error: noteError } = await supabase
+            .from('notes')
+            .insert({
+              user_id: user.id,
+              content_type: 'text',
+              content: noteContent,
+              title,
+            })
+            .select('id')
+            .maybeSingle();
+
+          if (noteError || !noteInsert) throw noteError || new Error('Failed to create note');
+          const noteId = noteInsert.id;
+
+          // 2) Create a quiz record referencing the note
+          const questionsPayload = answers.map((a: any) => ({
+            question: a.question,
+            correct_answer: a.correctAnswer,
+            explanation: a.explanation ?? null,
+          }));
+          const { data: quizInsert, error: quizError } = await supabase
+            .from('quizzes')
+            .insert({
+              user_id: user.id,
+              note_id: noteId,
+              questions: questionsPayload,
+            })
+            .select('id')
+            .maybeSingle();
+
+          if (quizError || !quizInsert) throw quizError || new Error('Failed to create quiz');
+          const quizId = quizInsert.id;
+
+          // 3) Save quiz results with proper foreign key
+          const { error: resultsError } = await supabase.from('quiz_results').insert({
             user_id: user.id,
-            content_type: 'text',
-            content: noteContent,
-            title,
-          })
-          .select('id')
-          .single();
+            quiz_id: quizId,
+            score,
+            total_questions: total,
+            answers,
+            incorrect_answers: answers.filter((a: any) => !a.isCorrect),
+          });
 
-        if (noteError) throw noteError;
-        const noteId = noteInsert.id;
-
-        // 2) Create a quiz record referencing the note
-        const questionsPayload = answers.map((a: any) => ({
-          question: a.question,
-          correct_answer: a.correctAnswer,
-          explanation: a.explanation ?? null,
-        }));
-        const { data: quizInsert, error: quizError } = await supabase
-          .from('quizzes')
-          .insert({
-            user_id: user.id,
-            note_id: noteId,
-            questions: questionsPayload,
-          })
-          .select('id')
-          .single();
-
-        if (quizError) throw quizError;
-        const quizId = quizInsert.id;
-
-        // 3) Save quiz results with proper foreign key
-        const { error: resultsError } = await supabase.from('quiz_results').insert({
-          user_id: user.id,
-          quiz_id: quizId,
-          score,
-          total_questions: total,
-          answers,
-          incorrect_answers: answers.filter((a: any) => !a.isCorrect),
-        });
-
-        if (resultsError) throw resultsError;
-      } catch (error) {
-        console.error('Error saving quiz data:', error);
+          if (resultsError) throw resultsError;
+        } catch (error) {
+          console.error('Error saving quiz data:', error);
+        } finally {
+          setIsSavingResults(false);
+        }
       }
     }
     

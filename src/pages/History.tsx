@@ -37,7 +37,20 @@ export const History = () => {
         .order('completed_at', { ascending: false });
 
       if (error) throw error;
-      setQuizResults(data || []);
+      const uniqueByQuiz: Record<string, any> = {};
+      (data || []).forEach((row: any) => {
+        const existing = uniqueByQuiz[row.quiz_id];
+        if (!existing) {
+          uniqueByQuiz[row.quiz_id] = row;
+        } else {
+          const existingTime = new Date(existing.completed_at).getTime();
+          const newTime = new Date(row.completed_at).getTime();
+          if (newTime > existingTime) {
+            uniqueByQuiz[row.quiz_id] = row;
+          }
+        }
+      });
+      setQuizResults(Object.values(uniqueByQuiz));
     } catch (error: any) {
       toast({
         variant: "destructive",

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -31,6 +31,7 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
   const [loading, setLoading] = useState(true);
   const [userAnswers, setUserAnswers] = useState<{ question: string; userAnswer: string; correctAnswer: string; isCorrect: boolean; explanation: string }[]>([]);
   const { toast } = useToast();
+  const completedRef = useRef(false);
 
   useEffect(() => {
     generateQuiz();
@@ -114,16 +115,19 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
     setShowFeedback(true);
     
     // Track the answer
-    setUserAnswers([...userAnswers, {
-      question: question.question,
-      userAnswer: selectedAnswer,
-      correctAnswer: question.correct_answer,
-      isCorrect: correct,
-      explanation: question.explanation
-    }]);
+    setUserAnswers((prev) => [
+      ...prev,
+      {
+        question: question.question,
+        userAnswer: selectedAnswer,
+        correctAnswer: question.correct_answer,
+        isCorrect: correct,
+        explanation: question.explanation,
+      },
+    ]);
     
     if (correct) {
-      setScore(score + 1);
+      setScore((s) => s + 1);
     }
   };
 
@@ -133,16 +137,11 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
       setSelectedAnswer("");
       setShowFeedback(false);
     } else {
-      // Calculate final score from userAnswers to ensure accuracy
-      const finalScore = isCorrect ? score + 1 : score;
-      const finalAnswers = [...userAnswers, {
-        question: questions[currentIndex].question,
-        userAnswer: selectedAnswer,
-        correctAnswer: questions[currentIndex].correct_answer,
-        isCorrect: isCorrect,
-        explanation: questions[currentIndex].explanation
-      }];
-      onComplete(finalScore, questions.length, finalAnswers);
+      // Complete the quiz once, computing score from recorded answers
+      if (completedRef.current) return;
+      completedRef.current = true;
+      const finalScore = userAnswers.filter((a) => a.isCorrect).length;
+      onComplete(finalScore, questions.length, userAnswers);
     }
   };
 
