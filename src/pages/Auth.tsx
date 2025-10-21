@@ -90,6 +90,21 @@ export const Auth = () => {
           throw error;
         }
 
+        // Ensure profile exists for this user
+        const { data: { user: loggedInUser } } = await supabase.auth.getUser();
+        if (loggedInUser) {
+          await supabase
+            .from('profiles')
+            .upsert(
+              {
+                id: loggedInUser.id,
+                email: loggedInUser.email,
+                full_name: loggedInUser.user_metadata?.full_name ?? null,
+              },
+              { onConflict: 'id' }
+            );
+        }
+
         toast({
           title: "Welcome back!",
           description: "You've successfully logged in.",
@@ -112,6 +127,21 @@ export const Auth = () => {
             throw new Error("This email is already registered. Please sign in instead.");
           }
           throw error;
+        }
+
+        // Create profile row for the new user
+        const { data: { user: signedUpUser } } = await supabase.auth.getUser();
+        if (signedUpUser) {
+          await supabase
+            .from('profiles')
+            .upsert(
+              {
+                id: signedUpUser.id,
+                email: signedUpUser.email,
+                full_name: fullName.trim(),
+              },
+              { onConflict: 'id' }
+            );
         }
 
         toast({
