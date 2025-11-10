@@ -22,7 +22,7 @@ serve(async (req) => {
 
     console.log('Extracting content from file...');
 
-    // Use Gemini to extract text from the file
+    // Use Gemini with OCR capabilities to extract text from the file
     const extractResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=' + GEMINI_API_KEY, {
       method: 'POST',
       headers: {
@@ -32,7 +32,18 @@ serve(async (req) => {
         contents: [{
           parts: [
             {
-              text: 'Extract all text content from this document. Be thorough and accurate. Return only the extracted text content without any additional formatting or commentary.'
+              text: `Extract ALL text content from this document using OCR if needed. 
+              
+CRITICAL INSTRUCTIONS:
+- Extract EVERY word, heading, paragraph, bullet point, and section
+- Preserve structure: headings, subheadings, lists, tables
+- Perform OCR on any scanned or image-based text
+- Include ALL content from every page
+- Maintain hierarchical structure (Chapter > Section > Subsection)
+- Do NOT summarize or skip content
+- Return ONLY the extracted text without any commentary
+
+Be thorough and accurate. Extract everything.`
             },
             {
               inline_data: {
@@ -43,7 +54,7 @@ serve(async (req) => {
           ]
         }],
         generationConfig: {
-          temperature: 0.3,
+          temperature: 0.1,
         }
       }),
     });
@@ -62,8 +73,8 @@ serve(async (req) => {
     let topics = null;
 
     // If the document is large or topics extraction is requested
-    if (extractTopics && extractedText.length > 1000) {
-      console.log('Extracting topics from large document...');
+    if (extractTopics && extractedText.length > 500) {
+      console.log('Extracting topics from document...');
       
       const topicsResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=' + GEMINI_API_KEY, {
         method: 'POST',
@@ -73,31 +84,40 @@ serve(async (req) => {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `You are a content analyzer. Analyze the provided text and identify 5-10 main topics or sections. 
-              For each topic, provide:
-              - A clear title (max 50 characters)
-              - A brief description (max 100 characters)
-              - Key subtopics if any
-              
-              Return ONLY valid JSON in this format:
-              {
-                "topics": [
-                  {
-                    "id": "topic-1",
-                    "title": "Topic Title",
-                    "description": "Brief description",
-                    "subtopics": ["subtopic1", "subtopic2"]
-                  }
-                ]
-              }
-              
-              Analyze this content and extract main topics:
+              text: `You are an educational content analyzer. Analyze the provided text and identify ALL main chapters, topics, and sections.
 
-${extractedText}`
+CRITICAL INSTRUCTIONS:
+- Identify 8-15 main topics/chapters from the document
+- For each topic, extract DETAILED subtopics that exist in the text
+- Subtopics should be specific concepts, sections, or subsections actually present
+- Use the exact headings and subheadings from the document when possible
+- Include hierarchical structure (main topic -> subtopics)
+- Be thorough - don't skip sections
+
+Return ONLY valid JSON in this exact format:
+{
+  "topics": [
+    {
+      "id": "topic-1",
+      "title": "Chapter/Topic Title (max 60 chars)",
+      "description": "Clear description of what this covers (max 120 chars)",
+      "subtopics": ["Specific Subtopic 1", "Specific Subtopic 2", "Specific Subtopic 3", "etc"]
+    }
+  ]
+}
+
+IMPORTANT: 
+- Each topic should have 3-8 detailed subtopics
+- Subtopics must be actual content sections from the document
+- Use specific terminology from the source material
+
+Analyze this content and extract the complete topic structure:
+
+${extractedText.length > 30000 ? extractedText.substring(0, 30000) + '... [content continues]' : extractedText}`
             }]
           }],
           generationConfig: {
-            temperature: 0.5,
+            temperature: 0.3,
           }
         }),
       });

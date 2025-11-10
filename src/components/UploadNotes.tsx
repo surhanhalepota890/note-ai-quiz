@@ -81,34 +81,57 @@ export const UploadNotes = ({ onNotesUploaded }: UploadNotesProps) => {
 
         const base64File = await base64Promise;
 
-        // Call edge function to extract content (it will handle the AI processing)
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-content-direct`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            },
-            body: JSON.stringify({
-              fileData: base64File,
-              mimeType: selectedFile.type,
-              extractTopics: true,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Failed to extract content');
+        // Show processing message for large files
+        const fileSize = selectedFile.size / (1024 * 1024);
+        if (fileSize > 2) {
+          toast({
+            title: "Processing large file",
+            description: "This may take 30-60 seconds. Please wait...",
+          });
         }
 
-        const extractData = await response.json();
-        extractedContent = extractData.content;
-        topics = extractData.topics;
+        // Call edge function with timeout for large files
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
 
-        if (!extractedContent || extractedContent.length < 50) {
-          throw new Error("Could not extract enough content from the file");
+        try {
+          const response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-content-direct`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              },
+              body: JSON.stringify({
+                fileData: base64File,
+                mimeType: selectedFile.type,
+                extractTopics: true,
+              }),
+              signal: controller.signal,
+            }
+          );
+
+          clearTimeout(timeout);
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to extract content');
+          }
+
+          const extractData = await response.json();
+          extractedContent = extractData.content;
+          topics = extractData.topics;
+
+          if (!extractedContent || extractedContent.length < 50) {
+            throw new Error("Could not extract enough content from the file");
+          }
+        } catch (fetchError: any) {
+          clearTimeout(timeout);
+          if (fetchError.name === 'AbortError') {
+            throw new Error("File processing timed out. Please try a smaller file or split your content.");
+          }
+          throw fetchError;
         }
       }
 
