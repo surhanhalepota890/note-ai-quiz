@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, History, LogOut, User } from "lucide-react";
+import { GraduationCap, History, LogOut, User, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export const Navbar = () => {
@@ -46,6 +46,15 @@ export const Navbar = () => {
           <div className="flex items-center gap-1 sm:gap-2">
             {user ? (
               <>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/study")}
+                  className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-4"
+                  size="sm"
+                >
+                  <BookOpen className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden sm:inline">Study</span>
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => navigate("/history")}
