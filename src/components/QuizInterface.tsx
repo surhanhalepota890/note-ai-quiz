@@ -39,6 +39,9 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
 
   const generateQuiz = async () => {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-quiz`,
         {
@@ -52,8 +55,11 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
             selectedTopics: selectedTopics,
             config: quizConfig,
           }),
+          signal: controller.signal,
         }
       );
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const error = await response.json();
@@ -64,11 +70,19 @@ export const QuizInterface = ({ noteContent, selectedTopics, quizConfig, onCompl
       setQuestions(data.questions);
       setLoading(false);
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to generate quiz",
-      });
+      if (error.name === 'AbortError') {
+        toast({
+          variant: "destructive",
+          title: "Request Timeout",
+          description: "Quiz generation took too long. Please try with shorter content or fewer questions.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message || "Failed to generate quiz",
+        });
+      }
       setLoading(false);
     }
   };
