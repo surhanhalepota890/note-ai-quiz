@@ -22,7 +22,7 @@ serve(async (req) => {
 
     console.log('Extracting content from file...');
 
-    // Use Lovable AI with OCR capabilities to extract text from the file
+    // Use Lovable AI with vision model for document extraction
     const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -30,14 +30,14 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro', // Pro model for better OCR and document extraction
         messages: [{
           role: 'user',
           content: [
             {
               type: 'text',
               text: `Extract ALL text content from this document using OCR if needed. 
-              
+
 CRITICAL INSTRUCTIONS:
 - Extract EVERY word, heading, paragraph, bullet point, and section
 - Preserve structure: headings, subheadings, lists, tables
@@ -51,9 +51,7 @@ Be thorough and accurate. Extract everything.`
             },
             {
               type: 'image_url',
-              image_url: {
-                url: `data:${mimeType};base64,${fileData}`
-              }
+              image_url: `data:${mimeType};base64,${fileData}`
             }
           ]
         }],
