@@ -17,22 +17,25 @@ serve(async (req) => {
       throw new Error('No file data provided');
     }
 
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
-    if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
 
     console.log('Extracting content from file...');
 
-    // Use Gemini API directly for document extraction
-    const extractResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent', {
+    // Use Lovable AI with vision model for document extraction
+    const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
-        'x-goog-api-key': GEMINI_API_KEY,
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [
+        model: 'google/gemini-2.5-pro',
+        messages: [{
+          role: 'user',
+          content: [
             {
+              type: 'text',
               text: `Extract ALL text content from this document using OCR if needed. 
 
 CRITICAL INSTRUCTIONS:
@@ -47,17 +50,12 @@ CRITICAL INSTRUCTIONS:
 Be thorough and accurate. Extract everything.`
             },
             {
-              inline_data: {
-                mime_type: mimeType,
-                data: fileData
-              }
+              type: 'image_url',
+              image_url: `data:${mimeType};base64,${fileData}`
             }
           ]
         }],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 8192,
-        },
+        temperature: 0.1,
       }),
     });
 
@@ -74,7 +72,7 @@ Be thorough and accurate. Extract everything.`
     }
 
     const extractData = await extractResponse.json();
-    const extractedText = extractData.candidates[0].content.parts[0].text;
+    const extractedText = extractData.choices[0].message.content;
 
     console.log('Content extracted, length:', extractedText.length);
 
@@ -84,16 +82,17 @@ Be thorough and accurate. Extract everything.`
     if (extractTopics && extractedText.length > 500) {
       console.log('Extracting topics from document...');
       
-      const topicsResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent', {
+      const topicsResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
           'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY,
         },
         body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `You are an educational content analyzer. Analyze the provided text and identify ALL main chapters, topics, and sections.
+          model: 'google/gemini-2.5-flash',
+          messages: [{
+            role: 'user',
+            content: `You are an educational content analyzer. Analyze the provided text and identify ALL main chapters, topics, and sections.
 
 CRITICAL INSTRUCTIONS:
 - Identify 8-15 main topics/chapters from the document
@@ -123,18 +122,14 @@ IMPORTANT:
 Analyze this content and extract the complete topic structure:
 
 ${extractedText.length > 30000 ? extractedText.substring(0, 30000) + '... [content continues]' : extractedText}`
-            }]
           }],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 8192,
-          },
+          temperature: 0.3,
         }),
       });
 
       if (topicsResponse.ok) {
         const topicsData = await topicsResponse.json();
-        const topicsContent = topicsData.candidates[0].content.parts[0].text;
+        const topicsContent = topicsData.choices[0].message.content;
         
         try {
           const jsonMatch = topicsContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
