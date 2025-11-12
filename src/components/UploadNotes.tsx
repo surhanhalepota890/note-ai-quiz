@@ -5,10 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Upload, FileText, Loader2, Image, FileType } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
-// Use Vite to load the worker from the package as a URL
-// @ts-ignore - vite url import
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
-GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
+// Use CDN for PDF.js worker to avoid Vite bundling issues
+GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
 interface Topic {
   id: string;
