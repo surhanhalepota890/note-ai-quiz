@@ -103,23 +103,81 @@ ${content}${topicsContext}`
       }),
     });
 
+    let aiContent: string | null = null;
     if (!response.ok) {
       const errorText = await response.text();
       console.error('AI API error:', response.status, errorText);
-      if (response.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again in a moment.');
+      if (response.status === 429 || response.status === 402) {
+        console.log('Falling back to Lovable AI gateway for quiz generation...');
+        const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+        if (!LOVABLE_API_KEY) {
+          throw new Error(response.status === 429 
+            ? 'Rate limit exceeded. Please try again in a moment.' 
+            : 'AI credits depleted. Please add credits to continue.');
+        }
+        const fb = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [{
+              role: 'user',
+              content: `You are a quiz generation expert. Generate educational quizzes STRICTLY based on the provided content. 
+              
+CRITICAL RULES:
+- Only use information from the provided text
+- Do NOT add external knowledge or facts
+- Questions must be answerable from the text alone
+- Explanations must reference specific parts of the provided content
+${difficultyInstructions}
+${typeInstructions}
+
+Return ONLY valid JSON in this exact format:
+{
+  "questions": [
+    {
+      "question": "Question text based on provided content",
+      "type": "multiple_choice",
+      "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+      "correct_answer": "Option 1",
+      "explanation": "Explanation referencing the provided content"
+    }
+  ]
+}
+
+For true/false questions, use "True" or "False" as correct_answer.
+For short answer, provide a brief correct answer from the text.
+
+Generate a quiz from this content:
+
+${content}${topicsContext}`
+            }],
+            temperature: 0.7,
+          })
+        });
+        if (!fb.ok) {
+          const t = await fb.text();
+          console.error('Lovable AI fallback failed:', fb.status, t);
+          throw new Error('Failed to generate quiz');
+        }
+        const d = await fb.json();
+        aiContent = d.choices?.[0]?.message?.content ?? null;
+      } else {
+        throw new Error(`AI API error: ${response.status}`);
       }
-      if (response.status === 402) {
-        throw new Error('AI credits depleted. Please add credits to continue.');
-      }
-      throw new Error(`AI API error: ${response.status}`);
+    } else {
+      const data = await response.json();
+      console.log('AI response received');
+      aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
     }
 
-    const data = await response.json();
-    console.log('AI response received');
-
-    const aiContent = data.candidates[0].content.parts[0].text;
     let parsedQuestions;
+    if (!aiContent) {
+      throw new Error('Failed to generate quiz content');
+    }
 
     try {
       // Try to extract JSON if wrapped in markdown code blocks
