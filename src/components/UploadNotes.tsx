@@ -4,10 +4,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Upload, FileText, Loader2, Image, FileType } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
+import * as pdfjsLib from 'pdfjs-dist';
 
-// Use CDN for PDF.js worker matching the installed pdfjs-dist version
-GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.mjs`;
+// Run without a separate worker to avoid version mismatch issues
+;(pdfjsLib as any).disableWorker = true;
 
 interface Topic {
   id: string;
@@ -29,7 +29,7 @@ export const UploadNotes = ({ onNotesUploaded }: UploadNotesProps) => {
   // Extract text from a PDF on the client using pdfjs-dist
   const extractPdfText = async (file: File): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await getDocument({ data: arrayBuffer }).promise;
+    const pdf = await (pdfjsLib as any).getDocument({ data: arrayBuffer }).promise;
     let text = '';
     const maxPages = Math.min(pdf.numPages, 50);
     for (let i = 1; i <= maxPages; i++) {
