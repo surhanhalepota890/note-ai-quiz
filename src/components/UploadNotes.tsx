@@ -4,6 +4,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Upload, FileText, Loader2, Image, FileType } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
+// Use Vite to load the worker from the package as a URL
+// @ts-ignore - vite url import
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
+GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 interface Topic {
   id: string;
@@ -21,6 +26,23 @@ export const UploadNotes = ({ onNotesUploaded }: UploadNotesProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  // Extract text from a PDF on the client using pdfjs-dist
+  const extractPdfText = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await getDocument({ data: arrayBuffer }).promise;
+    let text = '';
+    const maxPages = Math.min(pdf.numPages, 50);
+    for (let i = 1; i <= maxPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = (content.items as any[])
+        .map((it: any) => (it.str ?? ''))
+        .join(' ');
+      text += `\n\n${pageText}`;
+    }
+    return text.trim();
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -68,70 +90,88 @@ export const UploadNotes = ({ onNotesUploaded }: UploadNotesProps) => {
 
       // If file is uploaded, extract content from it
       if (selectedFile) {
-        // Read file as base64
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onload = () => {
-            const base64 = (reader.result as string).split(',')[1];
-            resolve(base64);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(selectedFile);
-        });
-
-        const base64File = await base64Promise;
-
-        // Show processing message for large files
-        const fileSize = selectedFile.size / (1024 * 1024);
-        if (fileSize > 2) {
-          toast({
-            title: "Processing large file",
-            description: "This may take 30-60 seconds. Please wait...",
-          });
-        }
-
-        // Call edge function with timeout for large files
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
-
-        try {
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-content-direct`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              },
-              body: JSON.stringify({
-                fileData: base64File,
-                mimeType: selectedFile.type,
-                extractTopics: true,
-              }),
-              signal: controller.signal,
-            }
-          );
-
-          clearTimeout(timeout);
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to extract content');
+        if (selectedFile.type === 'application/pdf') {
+          // Client-side PDF text extraction avoids OCR/API failures and rate limits
+          const fileSize = selectedFile.size / (1024 * 1024);
+          if (fileSize > 2) {
+            toast({
+              title: "Processing PDF",
+              description: "Extracting text locally. This may take up to a minute for large files.",
+            });
           }
-
-          const extractData = await response.json();
-          extractedContent = extractData.content;
-          topics = extractData.topics;
+          extractedContent = await extractPdfText(selectedFile);
+          topics = null;
 
           if (!extractedContent || extractedContent.length < 50) {
-            throw new Error("Could not extract enough content from the file");
+            throw new Error("Could not extract enough text from the PDF. Try a clearer file.");
           }
-        } catch (fetchError: any) {
-          clearTimeout(timeout);
-          if (fetchError.name === 'AbortError') {
-            throw new Error("File processing timed out. Please try a smaller file or split your content.");
+        } else {
+          // Images: send to backend for OCR extraction
+          // Read file as base64
+          const reader = new FileReader();
+          const base64Promise = new Promise<string>((resolve, reject) => {
+            reader.onload = () => {
+              const base64 = (reader.result as string).split(',')[1];
+              resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(selectedFile);
+          });
+
+          const base64File = await base64Promise;
+
+          // Show processing message for large files
+          const fileSize = selectedFile.size / (1024 * 1024);
+          if (fileSize > 2) {
+            toast({
+              title: "Processing image",
+              description: "This may take 20-40 seconds. Please wait...",
+            });
           }
-          throw fetchError;
+
+          // Call edge function with timeout for large files
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
+          try {
+            const response = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-content-direct`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                },
+                body: JSON.stringify({
+                  fileData: base64File,
+                  mimeType: selectedFile.type,
+                  extractTopics: true,
+                }),
+                signal: controller.signal,
+              }
+            );
+
+            clearTimeout(timeout);
+
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || 'Failed to extract content');
+            }
+
+            const extractData = await response.json();
+            extractedContent = extractData.content;
+            topics = extractData.topics;
+
+            if (!extractedContent || extractedContent.length < 50) {
+              throw new Error("Could not extract enough content from the image");
+            }
+          } catch (fetchError: any) {
+            clearTimeout(timeout);
+            if (fetchError.name === 'AbortError') {
+              throw new Error("Image processing timed out. Please try a smaller image.");
+            }
+            throw fetchError;
+          }
         }
       }
 
