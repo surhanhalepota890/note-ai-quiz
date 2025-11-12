@@ -51,9 +51,7 @@ Be thorough and accurate. Extract everything.`
             },
             {
               type: 'image_url',
-              image_url: {
-                url: `data:${mimeType};base64,${fileData}`
-              }
+              image_url: `data:${mimeType};base64,${fileData}`
             }
           ]
         }],
