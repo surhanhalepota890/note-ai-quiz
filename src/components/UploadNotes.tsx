@@ -6,8 +6,8 @@ import { Upload, FileText, Loader2, Image, FileType } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 
-// Use CDN for PDF.js worker to avoid Vite bundling issues
-GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+// Use CDN for PDF.js worker matching the installed pdfjs-dist version
+GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.mjs`;
 
 interface Topic {
   id: string;
