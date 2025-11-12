@@ -17,18 +17,26 @@ serve(async (req) => {
       throw new Error('No file data provided');
     }
 
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
-    if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
 
     console.log('Extracting content from file...');
 
-    // Try direct Gemini first, then fall back to Lovable AI if rate-limited
-    let extractedText = "";
-    const directPayload = {
-      contents: [{
-        parts: [
-          {
-            text: `Extract ALL text content from this document using OCR if needed.
+    // Use Lovable AI gateway for document extraction
+    const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-pro',
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `Extract ALL text content from this document using OCR if needed.
 
 CRITICAL INSTRUCTIONS:
 - Extract EVERY word, heading, paragraph, bullet point, and section
@@ -40,82 +48,33 @@ CRITICAL INSTRUCTIONS:
 - Return ONLY the extracted text without any commentary
 
 Be thorough and accurate. Extract everything.`
-          },
-          {
-            inline_data: {
-              mime_type: mimeType,
-              data: fileData
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${fileData}`
+              }
             }
-          }
-        ]
-      }],
-      generationConfig: { temperature: 0.1 }
-    };
-
-    const extractResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(directPayload),
+          ]
+        }],
+        temperature: 0.1,
+      }),
     });
 
-    if (extractResponse.ok) {
-      const extractData = await extractResponse.json();
-      extractedText = extractData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    } else {
+    if (!extractResponse.ok) {
       const errorText = await extractResponse.text();
       console.error('AI API error:', extractResponse.status, errorText);
-      if (extractResponse.status === 429 || extractResponse.status === 402) {
-        console.log('Falling back to Lovable AI gateway for extraction...');
-        const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-        if (!LOVABLE_API_KEY) {
-          throw new Error(extractResponse.status === 429 
-            ? 'Rate limit exceeded. Please try again in a moment.' 
-            : 'AI credits depleted. Please add credits to continue.');
-        }
-        const fallbackResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.5-pro',
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'text', text: `Extract ALL text content from this document using OCR if needed.
-
-CRITICAL INSTRUCTIONS:
-- Extract EVERY word, heading, paragraph, bullet point, and section
-- Preserve structure: headings, subheadings, lists, tables
-- Perform OCR on any scanned or image-based text
-- Include ALL content from every page
-- Maintain hierarchical structure (Chapter > Section > Subsection)
-- Do NOT summarize or skip content
-- Return ONLY the extracted text without any commentary
-
-Be thorough and accurate. Extract everything.` },
-                { type: 'image_url', image_url: `data:${mimeType};base64,${fileData}` }
-              ]
-            }],
-            temperature: 0.1,
-          })
-        });
-        if (!fallbackResp.ok) {
-          const fbText = await fallbackResp.text();
-          console.error('Lovable AI fallback failed:', fallbackResp.status, fbText);
-          throw new Error('Failed to extract content');
-        }
-        const fbData = await fallbackResp.json();
-        extractedText = fbData.choices?.[0]?.message?.content ?? '';
-      } else {
-        throw new Error(`AI API error: ${extractResponse.status}`);
+      if (extractResponse.status === 429) {
+        throw new Error('Rate limit exceeded. Please try again in a moment.');
       }
+      if (extractResponse.status === 402) {
+        throw new Error('AI credits depleted. Please add credits to continue.');
+      }
+      throw new Error(`AI API error: ${extractResponse.status}`);
     }
 
-    if (!extractedText) {
-      throw new Error('Failed to extract content');
-    }
+    const extractData = await extractResponse.json();
+    const extractedText = extractData.choices[0].message.content;
 
     console.log('Content extracted, length:', extractedText.length);
 
@@ -125,9 +84,17 @@ Be thorough and accurate. Extract everything.` },
     if (extractTopics && extractedText.length > 500) {
       console.log('Extracting topics from document...');
       
-      let topicsContent: string | null = null;
-
-      const topicsPrompt = `You are an educational content analyzer. Analyze the provided text and identify ALL main chapters, topics, and sections.
+      const topicsResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [{
+            role: 'user',
+            content: `You are an educational content analyzer. Analyze the provided text and identify ALL main chapters, topics, and sections.
 
 CRITICAL INSTRUCTIONS:
 - Identify 8-15 main topics/chapters from the document
@@ -156,54 +123,16 @@ IMPORTANT:
 
 Analyze this content and extract the complete topic structure:
 
-${extractedText.length > 30000 ? extractedText.substring(0, 30000) + '... [content continues]' : extractedText}`;
-
-      const topicsDirectPayload = {
-        contents: [{ parts: [{ text: topicsPrompt }] }],
-        generationConfig: { temperature: 0.3 }
-      };
-
-      const topicsResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(topicsDirectPayload),
+${extractedText.length > 30000 ? extractedText.substring(0, 30000) + '... [content continues]' : extractedText}`
+          }],
+          temperature: 0.3,
+        }),
       });
 
       if (topicsResponse.ok) {
         const topicsData = await topicsResponse.json();
-        topicsContent = topicsData.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
-      } else {
-        const tErrText = await topicsResponse.text();
-        console.error('AI API error (topics):', topicsResponse.status, tErrText);
-        if (topicsResponse.status === 429 || topicsResponse.status === 402) {
-          console.log('Falling back to Lovable AI gateway for topics...');
-          const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-          if (LOVABLE_API_KEY) {
-            const fb = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model: 'google/gemini-2.5-flash',
-                messages: [{ role: 'user', content: topicsPrompt }],
-                temperature: 0.3,
-              })
-            });
-            if (fb.ok) {
-              const fbData = await fb.json();
-              topicsContent = fbData.choices?.[0]?.message?.content ?? null;
-            } else {
-              console.error('Lovable AI fallback (topics) failed:', fb.status, await fb.text());
-            }
-          }
-        } else {
-          // Non-rate-limit error; leave topics as null
-        }
-      }
-
-      if (topicsContent) {
+        const topicsContent = topicsData.choices[0].message.content;
+        
         try {
           const jsonMatch = topicsContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
           const jsonStr = jsonMatch ? jsonMatch[1] : topicsContent;
