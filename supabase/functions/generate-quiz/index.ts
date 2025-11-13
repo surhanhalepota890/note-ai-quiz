@@ -68,13 +68,21 @@ serve(async (req) => {
         model: 'google/gemini-2.5-flash',
         messages: [{
           role: 'user',
-          content: `You are a quiz generation expert. Generate educational quizzes STRICTLY based on the provided content.
-            
-CRITICAL RULES:
-- Only use information from the provided text
-- Do NOT add external knowledge or facts
-- Questions must be answerable from the text alone
-- Explanations must reference specific parts of the provided content
+          content: `You are an expert quiz generation specialist. Create a PERSONALIZED educational quiz strictly based on the provided study material.
+
+${selectedTopics && selectedTopics.length > 0 ? `
+PERSONALIZATION FOCUS:
+The student wants to focus on these specific topics: ${selectedTopics.join(', ')}
+
+CRITICAL: Generate questions ONLY from these selected topics. Ensure the quiz feels tailored to what they want to learn.
+` : ''}
+
+QUIZ GENERATION RULES:
+- Only use information explicitly stated in the provided content
+- Do NOT add external knowledge or facts not in the text
+- Questions must be directly answerable from the material
+- Explanations must reference specific parts of the content
+- Make questions relevant and practical for learning
 ${difficultyInstructions}
 ${typeInstructions}
 
@@ -82,19 +90,26 @@ Return ONLY valid JSON in this exact format:
 {
   "questions": [
     {
-      "question": "Question text based on provided content",
+      "question": "Clear question text based on the content",
       "type": "multiple_choice",
       "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
       "correct_answer": "Option 1",
-      "explanation": "Explanation referencing the provided content"
+      "explanation": "Detailed explanation referencing the source material"
     }
   ]
 }
 
-For true/false questions, use "True" or "False" as correct_answer.
-For short answer, provide a brief correct answer from the text.
+For true/false questions:
+- Use type: "true_false"
+- Set correct_answer to "True" or "False"
+- Do not include options array
 
-Generate a quiz from this content:
+For short answer questions:
+- Use type: "short_answer"
+- Provide a concise correct answer from the text
+- Do not include options array
+
+Generate a personalized quiz from this content:
 
 ${content}${topicsContext}`
         }],

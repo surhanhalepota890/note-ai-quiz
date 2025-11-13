@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.extract-content-direct]
 verify_jwt = false
+
+[functions.extract-topics]
+verify_jwt = false

@@ -98,19 +98,51 @@ export const UploadNotes = ({ onNotesUploaded }: UploadNotesProps) => {
       // If file is uploaded, extract content from it
       if (selectedFile) {
         if (selectedFile.type === 'application/pdf') {
-          // Client-side PDF text extraction avoids OCR/API failures and rate limits
+          // Client-side PDF text extraction
           const fileSize = selectedFile.size / (1024 * 1024);
           if (fileSize > 2) {
             toast({
               title: "Processing PDF",
-              description: "Extracting text locally. This may take up to a minute for large files.",
+              description: "Extracting text and analyzing topics. This may take up to a minute...",
             });
           }
           extractedContent = await extractPdfText(selectedFile);
-          topics = null;
 
           if (!extractedContent || extractedContent.length < 50) {
             throw new Error("Could not extract enough text from the PDF. Try a clearer file.");
+          }
+
+          // Extract topics from PDF content for personalized quiz
+          if (extractedContent.length > 500) {
+            toast({
+              title: "Analyzing content",
+              description: "Identifying topics and subjects from your notes...",
+            });
+
+            try {
+              const topicsResponse = await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-topics`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                  },
+                  body: JSON.stringify({ content: extractedContent }),
+                }
+              );
+
+              if (topicsResponse.ok) {
+                const topicsData = await topicsResponse.json();
+                topics = topicsData.topics;
+                console.log('Extracted topics from PDF:', topics);
+              } else {
+                console.warn('Topic extraction failed, continuing without topics');
+              }
+            } catch (topicError) {
+              console.warn('Topic extraction error:', topicError);
+              // Continue without topics if extraction fails
+            }
           }
         } else {
           // Images: send to backend for OCR extraction
