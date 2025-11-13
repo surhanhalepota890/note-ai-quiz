@@ -6,9 +6,6 @@ import { Upload, FileText, Loader2, Image, FileType } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Run without a separate worker to avoid version mismatch issues
-;(pdfjsLib as any).disableWorker = true;
-
 interface Topic {
   id: string;
   title: string;
@@ -29,7 +26,13 @@ export const UploadNotes = ({ onNotesUploaded }: UploadNotesProps) => {
   // Extract text from a PDF on the client using pdfjs-dist
   const extractPdfText = async (file: File): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await (pdfjsLib as any).getDocument({ data: arrayBuffer }).promise;
+    const loadingTask = pdfjsLib.getDocument({ 
+      data: arrayBuffer,
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: true,
+    });
+    const pdf = await loadingTask.promise;
     let text = '';
     const maxPages = Math.min(pdf.numPages, 50);
     for (let i = 1; i <= maxPages; i++) {
