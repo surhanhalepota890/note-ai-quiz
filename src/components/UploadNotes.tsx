@@ -5,6 +5,11 @@ import { Card } from "@/components/ui/card";
 import { Upload, FileText, Loader2, Image, FileType } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjsLib from 'pdfjs-dist';
+// @ts-ignore - Vite will inline the worker URL string
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
+
+// Configure PDF.js worker to match the library version and avoid workerSrc errors
+;(pdfjsLib as any).GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 interface Topic {
   id: string;
